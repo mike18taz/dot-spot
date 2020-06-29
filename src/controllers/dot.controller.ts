@@ -4,17 +4,21 @@ import {
   Filter,
   FilterExcludingWhere,
   repository,
-  Where,
+  Where
 } from '@loopback/repository';
 import {
-  post,
-  param,
-  get,
-  getModelSchemaRef,
-  patch,
+  del, get,
+  getModelSchemaRef, param,
+
+
+  patch, post,
+
+
+
+
   put,
-  del,
-  requestBody,
+
+  requestBody
 } from '@loopback/rest';
 import {Dot} from '../models';
 import {DotRepository} from '../repositories';
@@ -22,14 +26,21 @@ import {DotRepository} from '../repositories';
 export class DotController {
   constructor(
     @repository(DotRepository)
-    public dotRepository : DotRepository,
+    public dotRepository: DotRepository,
   ) {}
 
   @post('/dots', {
     responses: {
       '200': {
         description: 'Dot model instance',
-        content: {'application/json': {schema: getModelSchemaRef(Dot)}},
+        content: {
+          'application/json': {
+            schema: {
+              type: 'array',
+              items: getModelSchemaRef(Dot, {includeRelations: true}),
+            },
+          },
+        },
       },
     },
   })
@@ -37,16 +48,16 @@ export class DotController {
     @requestBody({
       content: {
         'application/json': {
-          schema: getModelSchemaRef(Dot, {
-            title: 'NewDot',
-            exclude: ['id'],
-          }),
+          schema: {
+            type: 'array',
+            items: getModelSchemaRef(Dot, {includeRelations: true}),
+          },
         },
-      },
+      }
     })
-    dot: Omit<Dot, 'id'>,
-  ): Promise<Dot> {
-    return this.dotRepository.create(dot);
+    dots: Dot[]
+  ): Promise<Dot[]> {
+    return this.dotRepository.createAll(dots)
   }
 
   @get('/dots/count', {
@@ -170,4 +181,29 @@ export class DotController {
   async deleteById(@param.path.number('id') id: number): Promise<void> {
     await this.dotRepository.deleteById(id);
   }
+
+  @get('/dots/category/{category}', {
+    responses: {
+      '200': {
+        description: 'Array of Dot model instances',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'array',
+              items: getModelSchemaRef(Dot, {includeRelations: true}),
+            },
+          },
+        },
+      },
+    },
+  })
+
+  async findByCategory(
+    @param.path.string('category') category: string,
+    @param.filter(Dot) filter?: Filter<Dot>,
+  ): Promise<Dot[]> {
+    return this.dotRepository.find({where: {category: category}});
+  }
+
 }
+

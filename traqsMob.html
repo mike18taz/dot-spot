@@ -1,0 +1,1459 @@
+<script type="text/javascript">
+    var dateUpdatedString = "";
+    var updateComment = "";
+    var rerun = "no";
+    
+    let currentCreated = 0;
+    let currentUpdated = 0;
+    let currentDeleted = 0;
+    
+    let lastName = "";
+    let firstName = "";
+    let midInitial = "";
+    let tail = "";
+    
+    const siteUrl = "/sites/NAVSEA_RPO";
+    const listTitle = "TRAQS";
+    
+    //main
+    /*
+    function sendUpdateTRAQS() {
+      console.log("running script");
+    
+      getTRAQSList();
+    
+      //updateTRAQS(dataJSON);
+      console.log("ran script");
+    }
+    */
+    
+    //gets current TRAQS list
+    function getTRAQSList() {
+        //var clientContext = new SP.ClientContext(siteUrl);
+        //var oList = clientContext.get_web().get_lists().getByTitle(listTitle);
+        var itemQuery = {all: "yes"};
+    
+        updateComment = document.getElementById("process-comment").value;
+    
+        if(updateComment.substring(0,1) === "r") {
+            rerun = "yes";
+            console.log("rerun");
+            updateComment = updateComment.substring(1);
+        }
+    
+        retrieveListItems(siteUrl, listTitle, itemQuery);
+    }
+    
+    function retrieveListItems(siteUrl, listTitle, itemQuery){
+        var clientContext = new SP.ClientContext(siteUrl);
+        var oList = clientContext.get_web().get_lists().getByTitle(listTitle);
+    
+        var camlQuery = new SP.CamlQuery();
+        //camlQuery.set_viewXml('<View><ViewFields><FieldRef Name="FULL_NAME"></FieldRef><FieldRef Name="Id"></FieldRef></ViewFields><Query><Where><IsNull><FieldRef Name="Update"></FieldRef></IsNull></Where></Query></View>');
+        camlQuery.set_viewXml('<ViewFields><FieldRef Name="FULL_NAME"></FieldRef><FieldRef Name="Id"></FieldRef><FieldRef Name="Update"></FieldRef><FieldRef Name="BT"></FieldRef></ViewFields>');
+        //camlQuery.set_viewXml('<View><Query><Where>');
+    
+    
+        this.collListItem = oList.getItems(camlQuery);
+    
+        clientContext.load(collListItem, 'Include(FULL_NAME, Id, Update, BT)');
+    
+        console.log("Be Patient - it's retrieving the list!");
+    
+        clientContext.executeQueryAsync(Function.createDelegate(this, this.onQuerySucceeded), Function.createDelegate(this, this.onQueryFailed));
+    
+    }
+    
+    function onQuerySucceeded(sender, args) {
+        console.log("Processing list");
+        var listItemInfo = '';
+    
+        var listItemEnumerator = collListItem.getEnumerator();
+    
+        //var deleteList = [];
+        var tempList = [];
+        var permList = [];
+        var updateList = [];
+    
+        while (listItemEnumerator.moveNext()) {
+            var oListItem = listItemEnumerator.get_current();
+    
+            /*
+            listItemInfo += '\nID: ' + oListItem.get_id() +
+                '\nFullName: ' + oListItem.get_item('FULL_NAME') +
+                '\nRank: ' + oListItem.get_item('RANK');
+            */
+            oListItemName = oListItem.get_item('FULL_NAME');
+            oListItemBT = oListItem.get_item('BT');
+            if((oListItemName == "" || oListItemName == undefined) && rerun === "no") {
+                //console.log("Deleting obsolete (vacant) item!");
+                var oListItemId = oListItem.get_id();
+                //var personUpdateField = person.get_item('Update');
+                deleteItem(oListItemId);
+                //console.log("Obsolete (vacant) item deleted!");
+                currentDeleted++;
+                //deleteList.push(oListItem);
+            } else if(oListItemBT === "TEMP") {
+                // Add to list to check if in manning.csv and update required fields
+                tempList.push(oListItem);
+            } else if(oListItemBT === "PERM") {
+                // Add to list to update required fields (not expected to be in manning.csv)
+                permList.push(oListItem);
+            } else {
+                updateList.push(oListItem);
+            }
+    
+    
+        }
+    
+        getUpdateData(updateList, tempList, permList);
+        //getUpdateData(listItemEnumerator);
+        console.log('ALL SUCCESSFUL!');
+    }
+    
+    function onQueryFailed(sender, args) {
+        console.log("Failed to read list");
+    
+        alert('Request failed. ' + args.get_message() + '\n' + args.get_stackTrace());
+    }
+    
+    //get new data to update TRAQS list
+    function getUpdateData(updateListData, tempListData, permListData){
+        //console.log("current list", currentListData);
+    
+        var url = "https://navsea.navy.deps.mil/sites/NAVSEA_RPO/TRAQSPII/manning.csv";
+        var dataJSON = [];
+        var dataJSON =  csv_to_json(url);
+        //console.log(JSON.stringify(dataJSON));
+    
+        updatePERM(permListData, dataJSON);
+        let temps = [];
+        temps = updateTEMP(tempListData, dataJSON);
+        //updateTRAQS(temps, dataJSON);
+        let currentList = updateListData.concat(temps);
+        alert("starting to get");
+        updateTRAQS(currentList, dataJSON);
+    }
+    
+    function updatePERM(permData, newData) {
+        var loadItem = newData[1];
+        var loadDate = loadItem.NRDW_LOAD_DT;
+        var spLoadDate = convertDateToSP(loadDate);
+    
+        for (let j = 0; j < permData.length; j++) {
+            let permRecord = permData[j];
+            let permItemId = permRecord.get_id();
+            updatePermItem(permItemId, spLoadDate);
+            console.log("Permanent Item update: " + permItemId);
+        }
+    }
+    
+    function updateTEMP(tempData, newData) {
+        let tempMatches = [];
+        var loadItem = newData[1];
+        var loadDate = loadItem.NRDW_LOAD_DT;
+        var spLoadDate = convertDateToSP(loadDate);
+    
+        for (let j = 0; j < tempData.length; j++) {
+            var tempPerson = tempData[j];
+            //var tempPersonId = tempPerson.get_id();
+            var tempPersonFullName = tempPerson.get_item('FULL_NAME');
+            //var tempPersonUpdateField = tempPerson.get_item('Update');
+            //var tempPersonBT = tempPerson.get_item('BT');
+            var tempPersonTitle = determineTitle(tempPersonFullName);
+            var doesTempMatch = false;
+    
+            for (let i = 0; i < newData.length; i++) {
+                var tempRecord = newData[i];
+                var tempRecordFullName = tempRecord.FULL_NAME;
+                var tempRecordTitle = determineTitle(tempRecordFullName);
+                var matchRecordToItem = false;
+                if(tempRecordTitle === tempPersonTitle) {
+                    tempPerson.set_item('FULL_NAME', tempRecordFullName);
+                    tempPerson.set_item('ConvertDate', spLoadDate);
+                    tempPerson.set_item('Converted', 1);
+                    i = newData.length;
+                    doesTempMatch = true;
+                    tempMatches.push(tempPerson);
+                    console.log("Temp Item ready to Convert: " + tempPersonFullName);
+                }
+            }
+            if(!doesTempMatch) {
+                //person.set_item('FULL_NAME', recordFullName);
+                //person.set_item('NRDW_LOAD_DT', spLoadDate);
+                let permItemId = tempPerson.get_id();
+                updatePermItem(permItemId, spLoadDate);
+                //console.log("Temporary Item update: " + permItemId);
+            }
+        }
+    
+        return tempMatches;
+    }
+    
+    function updatePermItem(permId, permLoadDate) {
+        var pContext = new SP.ClientContext(siteUrl);
+        var pList = pContext.get_web().get_lists().getByTitle(listTitle);
+    
+        this.pListItem = pList.getItemById(permId);
+    
+        //console.log("uListItem", uListItem);
+    
+        pListItem.set_item('NRDW_LOAD_DT', permLoadDate);
+        pListItem.set_item('Updated', updateComment);
+        pListItem.set_item('Converted', 0);
+    
+        try{
+            pListItem.update();
+        }
+        catch(eer) {
+            console.log("update error: ");
+            console.log(eer);
+        }
+    
+        try{
+            pContext.load(pListItem);
+        }
+        catch(eer) {
+            console.log("load error: ");
+            console.log(eer);
+        }
+    
+        pContext.executeQueryAsync(Function.createDelegate(this, this.onPermUpdateSucceeded), Function.createDelegate(this, this.onPermUpdateFailed));
+    
+    }
+    
+    function onPermUpdateSucceeded() {
+        console.log(this.permId + " temp item updated!");
+    }
+    
+    function onPermUpdateFailed(sender, args) {
+    
+        console.log('Request failed. ' + args.get_message() + '\n' + args.get_stackTrace());
+    }
+    
+    //compare lists and update TRAQS accordingly
+    function updateTRAQS(currentData, newData) {
+        //console.log("New Data list", newData);
+    
+        //dateUpdatedString = Date().toString;
+    
+        // First check TEMP persons to see if there is a record
+    
+        for (var i = 0; i < newData.length; i++) {
+            var record = newData[i];
+            var recordFullName = record.FULL_NAME;
+            var matchRecordToItem = false;
+    
+            for (var j = 0; j < currentData.length; j++) {
+                // Check for converted persons
+                var person = currentData[j];
+                var personId = person.get_id();
+                var personFullName = person.get_item('FULL_NAME');
+                var personUpdateField = person.get_item('Update');
+                var personBT = person.get_item('BT');
+    
+                if(recordFullName == personFullName) {
+    
+                    currentUpdated++;
+                    //var currentUpdateField = updateComment + "_update";
+                    var currentUpdateField = updateComment;
+    
+                    //console.log("updating person");
+                    //if(personUpdateField !== null && personUpdateField.length > 1) {
+                    if(personUpdateField !== null && personUpdateField == currentUpdateField) {
+                        //if(personUpdateField !== null && personUpdateField.length > 255) {
+                        if (currentUpdated % 200 == 0) {
+                            console.log("already updated: " + currentUpdated);
+                        }
+                    } else {
+                        if (currentUpdated % 200 == 0) {
+                            console.log("updating person: " + currentUpdated);
+                        }
+    
+                        if(personBT === "TEMP") {
+                            updatePerson(record, personId, 1);
+                        } else {
+                            updatePerson(record, personId);
+                        }
+                    }
+                    matchRecordToItem = true;
+                    //break;
+                }
+            }
+    
+            if (!matchRecordToItem) {
+                if ((recordFullName == "" || recordFullName == undefined) && rerun === "yes") {
+                    console.log("Bypassing vacant billet");
+                } else {
+                    currentCreated++;
+                    if (currentCreated % 100 == 0) {
+                        console.log("creating new person: " + currentCreated);
+                    }
+                    //console.log("creating new person");
+                    createListItem(record, i);
+                }
+            }
+        }
+    
+        console.log(currentDeleted + " items deleted!");
+        console.log(currentCreated + " items created!");
+        console.log(currentUpdated + " items updated!");
+    
+        alert("Update complete!");
+    }
+    
+    // Delete item in TRAQS (just Vacant billets currently)
+    function deleteItem(id) {
+        this.itemId = id;
+        var dContext = new SP.ClientContext(siteUrl);
+        var dList = dContext.get_web().get_lists().getByTitle(listTitle);
+        this.dListItem = dList.getItemById(itemId);
+        dListItem.deleteObject();
+    
+        dContext.executeQueryAsync(
+            Function.createDelegate(this, this.onDeleteSucceeded),
+            Function.createDelegate(this, this.onDeleteFailed)
+        );
+    }
+    
+    function onDeleteSucceeded() {
+        //console.log('Item deleted: ' + itemId);
+    }
+    
+    function onDeleteFailed(sender, args) {
+        console.log('Delete failed. ' + args.get_message() +
+            '\n' + args.get_stackTrace());
+    }
+    
+    // Update person in TRAQS
+    function updatePerson(updatedPerson, id, converted=0) {
+        //var dateUpdatedString = "";
+    
+        var uAA_DRILLS = updatedPerson["AA_DRILLS"];
+        var uABSC = updatedPerson["ABSC"];
+        var uADM_MAS = updatedPerson["ADM_MAS"];
+        var uADM_MAS_DT = updatedPerson["ADM_MAS_DT"];
+        var uAQD1 = updatedPerson["AQD1"];
+        var uAQD2 = updatedPerson["AQD2"];
+        var uAQD3 = updatedPerson["AQD3"];
+        var uAQD4 = updatedPerson["AQD4"];
+        var uAUIC = updatedPerson["AUIC"];
+        var uBILL_ASG_DT = updatedPerson["BILL_ASG_DT"];
+        var uBIN = updatedPerson["BIN"];
+        var uBTITLE = updatedPerson["BTITLE"];
+        var uCAI_NOSC = updatedPerson["CAI NOSC"];
+        var uCAI_Short_Title = updatedPerson["CAI Short Title"];
+        var uCAI_UMUIC = updatedPerson["CAI UMUIC"];
+        var uCAO_UMUIC = updatedPerson["CAO_UMUIC"];
+        var uCAO_UMUIC_SHORT_TITL = updatedPerson["CAI_UMUIC_SHORT_TITL"];
+        var uCITY = updatedPerson["Per_CITY"];
+        var uCED = updatedPerson["CED"];
+        var uCLMNT = updatedPerson["CLMNT"];
+        var uDIEMS = updatedPerson["DIEMS"];
+        var uDIERF = updatedPerson["DIERF"];
+    
+        var uDOD_ID = updatedPerson["DOD_ID"];
+    
+        //OBSOLETE
+        /*
+        try{
+        var uDOR = updatedPerson["DOR"];
+        }
+        catch(eer) {
+        console.log("DOR error: ");
+        console.log(eer);
+        }
+        */
+    
+        var uDRILLS = updatedPerson["DRILLS"];
+        var uDrills_Tot_Adj = updatedPerson["Drills_Tot_Adj"];
+    
+        try{
+            var uEOS = updatedPerson["EOS"];
+        }
+        catch(eer) {
+            console.log("EOS error: ");
+            console.log(eer);
+        }
+    
+        var uFULL_NAME = updatedPerson["FULL_NAME"];
+        //OBSOLETE var uIAP_Status = updatedPerson["IAP_Status"];
+        var uIAP_DT = updatedPerson["IAP_DT"];
+        var uIMS = updatedPerson["IMS"];
+        var uIMS_DT = updatedPerson["IMS_DT"];
+        var uMAS = updatedPerson["MAS"];
+        var uMAS_DT = updatedPerson["MAS_DT"];
+        var uMED_MAS = updatedPerson["MED_MAS"];
+        var uMED_MAS_DT = updatedPerson["MED_MAS_DT"];
+        var uNAT_ = updatedPerson["NAT?"];
+        var uNECNOBC1 = updatedPerson["NECNOBC1"];
+        var uNECNOBC2 = updatedPerson["NECNOBC2"];
+        //OBSOLETE var uNECNOBC3 = updatedPerson["NECNOBC3"];
+        //OBSOLETE var uNECNOBC4 = updatedPerson["NECNOBC4"];
+        var uNRA_UIC = updatedPerson["NRA_UIC"];
+        var uNRDW_LOAD_DT = updatedPerson["NRDW_LOAD_DT"];
+        var uP_PayGrade = updatedPerson["P_PayGrade"];
+        var uP_Rate_Rank = updatedPerson["P_Rate/Rank"];
+        //OBSOLETE var uPAQD = updatedPerson["PAQD"];
+        var uPer_O_E = updatedPerson["Per_O/E"];
+    
+        try{
+            var uPRD = updatedPerson["PRD"];
+        }
+        catch(eer) {
+            console.log("PRD uerror: ");
+            console.log(eer);
+        }
+        //OBSOLETE var uPRIMARY_EMAIL = updatedPerson["EMAIL"];
+        var uPSUBSPEC = updatedPerson["PSUBSPEC"];
+        var uRBSC = updatedPerson["RBSC"];
+        var uREC_TY = updatedPerson["REC_TY"];      // 16MAR2020 went from REC_TY to REC_TY_P, 29APR2020 went back to REC_TY
+        //OBSOLETE var uREC_TY_B = updatedPerson["REC_TY_B"];
+        var uRecord_Type = updatedPerson["Record_Type"];
+        var uRQMT_RD = updatedPerson["RQMT/RD"];
+        var uRTNG_DESG = updatedPerson["RTNG/DESG"];
+        var uRUIC_Title = updatedPerson["RUIC_Title"];
+        //OBSOLETE var uSAQD = updatedPerson["SAQD"];
+    
+        //OBSOLETE
+        /*
+        try{
+        var uSCRTY_DT = updatedPerson["SCRTY_DT"];
+        }
+        catch(eer) {
+        console.log("SCRTY_DT uerror: ");
+        console.log(eer);
+        }
+        */
+    
+        var uSCRTY_DT = updatedPerson["SCRTY_DT"];
+        //OBSOLETE
+        var uSCRTY_LVL = updatedPerson["SCRTY_LVL"];
+    
+        var uSELECT = updatedPerson["SELECT"];
+        var uSEX = updatedPerson["SEX"];
+        var uSSUBSPEC = updatedPerson["SSUBSPEC"];
+        var uSTATE = updatedPerson["Per_STATE"];
+        var uSUPSP1 = updatedPerson["SUPSP1"];
+        var uSUPSP2 = updatedPerson["SUPSP2"];
+        var uSUPSP3 = updatedPerson["SUPSP3"];
+        var uSUPSP4 = updatedPerson["SUPSP4"];
+        var uTRA_OTH_MAS = updatedPerson["TRA_OTH_MAS"];
+        var uTRA_OTH_MAS_DT = updatedPerson["TRA_OTH_MAS_DT"];
+        var uTRUIC = updatedPerson["TRUIC"];
+        var uTRUIC_SELECT = updatedPerson["TRUIC SELECT"];
+        var uTRUIC_NOSC = updatedPerson["TRUIC_NOSC"];
+        var uTRUIC_Title = updatedPerson["TRUIC_Title"];
+        var uUA_DRILLS = updatedPerson["UA_DRILLS"];
+        var uUMUIC = updatedPerson["UMUIC"];
+        var uUNIT_ASG_DT = updatedPerson["UNIT_ASG_DT"];
+        var uVACATE_DT = updatedPerson["VACATE_DT"];
+    
+        var uMOB_STATUS = updatedPerson["MOB_STATUS"];
+        var uTOTAS= updatedPerson["TOTAS"];
+        var uATTRITION = updatedPerson["ATTRITION"];
+        var uAGE_60 = updatedPerson["AGE_60"];
+    
+        var uSM_U_REGION = determineRegion(uUMUIC);
+        var uSM_T_REGION = determineRegion(uTRUIC);
+    
+        //console.log("UMUIC", uUMUIC);
+    
+        var uContext = new SP.ClientContext(siteUrl);
+        var uList = uContext.get_web().get_lists().getByTitle(listTitle);
+    
+        this.uListItem = uList.getItemById(id);
+    
+        //console.log("uListItem", uListItem);
+    
+        uListItem.set_item('AA_DRILLS', uAA_DRILLS);
+        uListItem.set_item('ABSC', uABSC);
+        uListItem.set_item('ADM_MAS', uADM_MAS);
+        uListItem.set_item('ADM_MAS_DT', convertDateToSP(uADM_MAS_DT));
+        //uListItem.set_item('AQD1', uAQD1);
+        //uListItem.set_item('AQD2', uAQD2);
+        //uListItem.set_item('AQD3', uAQD3);
+        //uListItem.set_item('AQD4', uAQD4);
+        uListItem.set_item('_x0041_QD1', uAQD1);
+        uListItem.set_item('_x0041_QD2', uAQD2);
+        uListItem.set_item('_x0041_QD3', uAQD3);
+        uListItem.set_item('_x0041_QD4', uAQD4);
+        uListItem.set_item('AUIC', uAUIC);
+        uListItem.set_item('BILL_ASG_DT', convertDateToSP(uBILL_ASG_DT));
+        try{
+            uListItem.set_item('BILL_ASG_DT', convertDateToSP(uBILL_ASG_DT));
+        }
+        catch(eer) {
+            console.log(uBILL_ASG_DT + " BILL_ASG_DT update error: ");
+            console.log(eer);
+        }
+        uListItem.set_item('BIN', uBIN);
+        uListItem.set_item('BTITLE', uBTITLE);
+        //uListItem.set_item('CAI NOSC', uCAI_NOSC);
+        //uListItem.set_item('CAI Short Title', uCAI_Short_Title);
+        //uListItem.set_item('CAI UMUIC', uCAI_UMUIC);
+        uListItem.set_item('CAI_x0020_NOSC', uCAI_NOSC);
+        uListItem.set_item('CAI_x0020_Short_x0020_Title', uCAI_Short_Title);
+        uListItem.set_item('CAI_x0020_UMUIC', uCAI_UMUIC);
+        uListItem.set_item('CAO_UMUIC', uCAO_UMUIC);
+        uListItem.set_item('CAO_UMUIC_SHORT_TITL', uCAO_UMUIC_SHORT_TITL);
+        uListItem.set_item('CED', convertDateToSP(uCED));
+        uListItem.set_item('CITY', uCITY);
+        uListItem.set_item('CLMNT', uCLMNT);
+        uListItem.set_item('DIEMS', convertDateToSP(uDIEMS));
+        uListItem.set_item('DIERF', convertDateToSP(uDIERF));
+    
+        if(uDOD_ID !== "NONE") {
+            uListItem.set_item('DOD_x0020_Number', uDOD_ID);
+        }
+    
+    
+        //OBSOLETE
+        /*
+        try{
+        uListItem.set_item('DOR', convertDateToSP(uDOR));
+        }
+        catch(eer) {
+        console.log("DOR error: ");
+        console.log(eer);
+        }
+        */
+    
+        uListItem.set_item('DRILLS', uDRILLS);
+        uListItem.set_item('Drills_Tot_Adj', uDrills_Tot_Adj);
+    
+        try{
+            uListItem.set_item('EOS', convertDateToSP(uEOS));
+        }
+        catch(eer) {
+            console.log(uEOS + "EOS update error: ");
+            console.log(eer);
+        }
+    
+        //uListItem.set_item('FULL_NAME', uFULL_NAME);
+        uListItem.set_item('IAP_DT', convertDateToSP(uIAP_DT));
+        //OBSOLETE uListItem.set_item('IAP_Status', uIAP_Status);
+        uListItem.set_item('IMS', uIMS);
+        uListItem.set_item('IMS_DT', convertDateToSP(uIMS_DT));
+        uListItem.set_item('MAS', uMAS);
+        uListItem.set_item('MAS_DT', convertDateToSP(uMAS_DT));
+        uListItem.set_item('MED_MAS', uMED_MAS);
+        uListItem.set_item('MED_MAS_DT', convertDateToSP(uMED_MAS_DT));
+        //uListItem.set_item('NAT?', uNAT_);
+        uListItem.set_item('NAT_x003f_', uNAT_);
+        uListItem.set_item('NECNOBC1', uNECNOBC1);
+        uListItem.set_item('NECNOBC2', uNECNOBC2);
+        //OBSOLETE uListItem.set_item('NECNOBC3', uNECNOBC3);
+        //OBSOLETE uListItem.set_item('NECNOBC4', uNECNOBC4);
+        uListItem.set_item('NRA_UIC', uNRA_UIC);
+    
+        let spNRDW_LOAD_DT = convertDateToSP(uNRDW_LOAD_DT);
+        try{
+            uListItem.set_item('NRDW_LOAD_DT', spNRDW_LOAD_DT);
+        }
+        catch(eer) {
+            console.log(uNRDW_LOAD_DT + " NRDW_LOAD_DT update error: ");
+            console.log(eer);
+        }
+    
+        uListItem.set_item('P_PayGrade', uP_PayGrade);
+        uListItem.set_item('P_Rate_x002f_Rank', uP_Rate_Rank);
+        //OBSOLETE uListItem.set_item('PAQD', uPAQD);
+        uListItem.set_item('Per_O_x002f_E', uPer_O_E);
+    
+        try{
+            uListItem.set_item('PRD', convertDateToSP(uPRD));
+        }
+        catch(eer) {
+            console.log(uPRD + "PRD update error: ");
+            console.log(eer);
+        }
+    
+        //OBSOLETE uListItem.set_item('PRIMARY_EMAIL', uPRIMARY_EMAIL);
+        uListItem.set_item('PSUBSPEC', uPSUBSPEC);
+        uListItem.set_item('RBSC', uRBSC);
+        uListItem.set_item('REC_TY', uREC_TY);
+        //OBSOLETE uListItem.set_item('REC_TY_B', uREC_TY_B);
+        uListItem.set_item('RQMT_x002f_RD', uRQMT_RD);
+        uListItem.set_item('BT', uRecord_Type);
+        //uListItem.set_item('Record_Type', uRecord_Type);
+        uListItem.set_item('RTNG_x002f_DESG', uRTNG_DESG);
+        uListItem.set_item('RUIC_Title', uRUIC_Title);
+        //OBSOLETE uListItem.set_item('SAQD', uSAQD);
+    
+        //OBSOLETE
+        /*
+        try{
+        uListItem.set_item('SCRTY_DT', convertDateToSP(uSCRTY_DT));
+        }
+        catch(eer) {
+        console.log("SCRTY_DT error: ");
+        console.log(eer);
+        }
+        */
+        if(uSCRTY_LVL !== "NONE") {
+            uListItem.set_item('SCRTY_DT', convertDateToSP(uSCRTY_DT));
+            //OBSOLETE
+            uListItem.set_item('SCRTY_LVL', uSCRTY_LVL);
+        }
+    
+    
+        //uListItem.set_item('SELECT', uSELECT);
+        uListItem.set_item('Select1', uSELECT);
+        uListItem.set_item('SEX', uSEX);
+        uListItem.set_item('SSUBSPEC', uSSUBSPEC);
+        uListItem.set_item('STATE', uSTATE);
+        uListItem.set_item('SUPSP1', uSUPSP1);
+        uListItem.set_item('SUPSP2', uSUPSP2);
+        uListItem.set_item('SUPSP3', uSUPSP3);
+        uListItem.set_item('SUPSP4', uSUPSP4);
+        uListItem.set_item('TRA_OTH_MAS', uTRA_OTH_MAS);
+        uListItem.set_item('TRA_OTH_MAS_DT', convertDateToSP(uTRA_OTH_MAS_DT));
+        uListItem.set_item('TRUIC', uTRUIC);
+        //uListItem.set_item('TRUIC SELECT', uTRUIC_SELECT);
+        uListItem.set_item('TRUIC_x0020_SELECT', uTRUIC_SELECT);
+        uListItem.set_item('TRUIC_NOSC', uTRUIC_NOSC);
+        uListItem.set_item('TRUIC_Title', uTRUIC_Title);
+        uListItem.set_item('UA_DRILLS', uUA_DRILLS);
+        uListItem.set_item('UMUIC', uUMUIC);
+        uListItem.set_item('UNIT_ASG_DT', convertDateToSP(uUNIT_ASG_DT));
+        uListItem.set_item('VACATE_DT', convertDateToSP(uVACATE_DT));
+    
+        uListItem.set_item('MOB_STATUS', uMOB_STATUS);
+        uListItem.set_item('TOTAS', uTOTAS);
+        uListItem.set_item('ATTRITION', uATTRITION);
+        uListItem.set_item('AGE_60', uAGE_60);
+    
+        if (uFULL_NAME.length > 0) {
+            var uCurrentTitle = determineTitle(uFULL_NAME);
+            uListItem.set_item('Title', uCurrentTitle);
+            uListItem.set_item('First', firstName);
+            uListItem.set_item('Last', lastName);
+            uListItem.set_item('MI', midInitial);
+            uListItem.set_item('TAIL', tail);
+            uListItem.set_item('Sailor_x0020_Name', setSailorName(uCurrentTitle, uRTNG_DESG, uP_Rate_Rank, uPer_O_E));
+        }
+    
+        uListItem.set_item('SM_U_REGION', uSM_U_REGION);
+        uListItem.set_item('SM_T_REGION', uSM_T_REGION);
+    
+        uListItem.set_item('Update', updateComment);
+        uListItem.set_item('Action', "Updated");
+        if (converted === 1) {
+            uListItem.set_item('Converted', converted);
+            uListItem.set_item('ConvertDate', spNRDW_LOAD_DT);
+        }
+        //uListItem.set_item('Update', updateComment + "_update");
+    
+        //console.log("check", uListItem.get_item('FULL_NAME'));
+        //console.log("check", uListItem.get_item('SEX'));
+    
+        try{
+            uListItem.update();
+        }
+        catch(eer) {
+            console.log("update error: ");
+            console.log(eer);
+        }
+    
+        try{
+            uContext.load(uListItem);
+        }
+        catch(eer) {
+            console.log("load error: ");
+            console.log(eer);
+        }
+    
+        uContext.executeQueryAsync(Function.createDelegate(this, this.onUpdateSucceeded), Function.createDelegate(this, this.onUpdateFailed));
+    
+    }
+    
+    function onUpdateSucceeded() {
+        //currentUpdated++;
+        if (currentUpdated % 200 == 0) {
+            console.log(currentUpdated + " items updated!");
+        }
+    }
+    
+    function onUpdateFailed(sender, args) {
+    
+        console.log('Request failed. ' + args.get_message() + '\n' + args.get_stackTrace());
+    }
+    
+    
+    //creates new item in list
+    function createListItem(updatedPerson){
+        //var dateUpdatedString = "";
+    
+        var cAA_DRILLS = updatedPerson["AA_DRILLS"];
+        var cABSC = updatedPerson["ABSC"];
+        var cADM_MAS = updatedPerson["ADM_MAS"];
+        var cADM_MAS_DT = updatedPerson["ADM_MAS_DT"];
+        var cAQD1 = updatedPerson["AQD1"];
+        var cAQD2 = updatedPerson["AQD2"];
+        var cAQD3 = updatedPerson["AQD3"];
+        var cAQD4 = updatedPerson["AQD4"];
+        var cAUIC = updatedPerson["AUIC"];
+        var cBILL_ASG_DT = updatedPerson["BILL_ASG_DT"];
+        var cBIN= updatedPerson["BIN"];
+        var cBTITLE = updatedPerson["BTITLE"];
+        var cCAI_NOSC = updatedPerson["CAI NOSC"];
+        var cCAI_Short_Title = updatedPerson["CAI Short Title"];
+        var cCAI_UMUIC = updatedPerson["CAI UMUIC"];
+        var cCAO_UMUIC = updatedPerson["CAO_UMUIC"];
+        var cCAO_UMUIC_SHORT_TITL = updatedPerson["CAI_UMUIC_SHORT_TITL"];
+        var cCITY = updatedPerson["Per_CITY"];
+        var cCED = updatedPerson["CED"];
+        var cCLMNT = updatedPerson["CLMNT"];
+        var cDIEMS = updatedPerson["DIEMS"];
+        var cDIERF = updatedPerson["DIERF"];
+    
+        var cDOD_ID = updatedPerson["DOD_ID"];
+    
+        //OBSOLETE
+        /*
+        try{
+        var cDOR = updatedPerson["DOR"];
+        }
+        catch(eer) {
+        console.log("DOR error: ");
+        console.log(eer);
+        }
+        */
+    
+        var cDRILLS = updatedPerson["DRILLS"];
+        var cDrills_Tot_Adj = updatedPerson["Drills_Tot_Adj"];
+    
+        try{
+            var cEOS = updatedPerson["EOS"];
+        }
+        catch(eer) {
+            console.log("EOS cerror: ");
+            console.log(eer);
+        }
+    
+        var cFULL_NAME = updatedPerson["FULL_NAME"];
+        //OBSOLETE var cIAP_Status = updatedPerson["IAP_Status"];
+        var cIAP_DT = updatedPerson["IAP_DT"];
+        var cIMS = updatedPerson["IMS"];
+        var cIMS_DT = updatedPerson["IMS_DT"];
+        var cMAS = updatedPerson["MAS"];
+        var cMAS_DT = updatedPerson["MAS_DT"];
+        var cMED_MAS = updatedPerson["MED_MAS"];
+        var cMED_MAS_DT = updatedPerson["MED_MAS_DT"];
+        var cNAT_ = updatedPerson["NAT?"];
+        var cNECNOBC1 = updatedPerson["NECNOBC1"];
+        var cNECNOBC2 = updatedPerson["NECNOBC2"];
+        //OBSOLETE var cNECNOBC3 = updatedPerson["NECNOBC3"];
+        //OBSOLETE var cNECNOBC4 = updatedPerson["NECNOBC4"];
+        var cNRA_UIC = updatedPerson["NRA_UIC"];
+        var cNRDW_LOAD_DT = updatedPerson["NRDW_LOAD_DT"];
+        var cP_PayGrade = updatedPerson["P_PayGrade"];
+        var cP_Rate_Rank = updatedPerson["P_Rate/Rank"];
+        //OBSOLETE var cPAQD = updatedPerson["PAQD"];
+        var cPer_O_E = updatedPerson["Per_O/E"];
+    
+        try{
+            var cPRD = updatedPerson["PRD"];
+        }
+        catch(eer) {
+            console.log("PRD cerror: ");
+            console.log(eer);
+        }
+    
+        //OBSOLETE var cPRIMARY_EMAIL = updatedPerson["EMAIL"];
+        var cPSUBSPEC = updatedPerson["PSUBSPEC"];
+        var cRBSC = updatedPerson["RBSC"];
+        var cREC_TY = updatedPerson["REC_TY"];      // 16MAR2020 went from REC_TY to REC_TY_P, 29APR2020 went back to REC_TY
+        //OBSOLETE var cREC_TY_B = updatedPerson["REC_TY_B"];
+        var cRecord_Type = updatedPerson["Record_Type"];
+        var cRQMT_RD = updatedPerson["RQMT/RD"];
+        var cRTNG_DESG = updatedPerson["RTNG/DESG"];
+        var cRUIC_Title = updatedPerson["RUIC_Title"];
+        //OBSOLETE var cSAQD = updatedPerson["SAQD"];
+    
+        //OBSOLETE
+        /*
+        try{
+        var cSCRTY_DT = updatedPerson["SCRTY_DT"];
+        }
+        catch(eer) {
+        console.log("SCRTY_DT error: ");
+        console.log(eer);
+        }
+        */
+    
+        var cSCRTY_DT = updatedPerson["SCRTY_DT"];
+        //OBSOLETE
+        var cSCRTY_LVL = updatedPerson["SCRTY_LVL"];
+    
+    
+        var cSELECT = updatedPerson["SELECT"];
+        var cSEX = updatedPerson["SEX"];
+        var cSSUBSPEC = updatedPerson["SSUBSPEC"];
+        var cSTATE = updatedPerson["Per_STATE"];
+        var cSUPSP1 = updatedPerson["SUPSP1"];
+        var cSUPSP2 = updatedPerson["SUPSP2"];
+        var cSUPSP3 = updatedPerson["SUPSP3"];
+        var cSUPSP4 = updatedPerson["SUPSP4"];
+        var cTRA_OTH_MAS = updatedPerson["TRA_OTH_MAS"];
+        var cTRA_OTH_MAS_DT = updatedPerson["TRA_OTH_MAS_DT"];
+        var cTRUIC = updatedPerson["TRUIC"];
+        var cTRUIC_SELECT = updatedPerson["TRUIC SELECT"];
+        var cTRUIC_NOSC = updatedPerson["TRUIC_NOSC"];
+        var cTRUIC_Title = updatedPerson["TRUIC_Title"];
+        var cUA_DRILLS = updatedPerson["UA_DRILLS"];
+        var cUMUIC = updatedPerson["UMUIC"];
+        var cUNIT_ASG_DT = updatedPerson["UNIT_ASG_DT"];
+        var cVACATE_DT = updatedPerson["VACATE_DT"];
+    
+        var cMOB_STATUS = updatedPerson["MOB_STATUS"];
+        var cTOTAS= updatedPerson["TOTAS"];
+        var cATTRITION = updatedPerson["ATTRITION"];
+        var cAGE_60 = updatedPerson["AGE_60"];
+    
+        var cSM_U_REGION = determineRegion(cUMUIC);
+        var cSM_T_REGION = determineRegion(cTRUIC);
+    
+    
+        var context = new SP.ClientContext(siteUrl);
+        var cList = context.get_web().get_lists().getByTitle(listTitle);
+        var itemCreateInfo = new SP.ListItemCreationInformation();
+        this.cListItem = cList.addItem(itemCreateInfo);
+        //var cListItem = cList.addItem(itemCreateInfo);
+    
+        cListItem.set_item('AA_DRILLS', cAA_DRILLS);
+        cListItem.set_item('ABSC', cABSC);
+        cListItem.set_item('ADM_MAS', cADM_MAS);
+        cListItem.set_item('ADM_MAS_DT', convertDateToSP(cADM_MAS_DT));
+        //cListItem.set_item('AQD1', cAQD1);
+        //cListItem.set_item('AQD2', cAQD2);
+        //cListItem.set_item('AQD3', cAQD3);
+        //cListItem.set_item('AQD4', cAQD4);
+        cListItem.set_item('_x0041_QD1', cAQD1);
+        cListItem.set_item('_x0041_QD2', cAQD2);
+        cListItem.set_item('_x0041_QD3', cAQD3);
+        cListItem.set_item('_x0041_QD4', cAQD4);
+        cListItem.set_item('AUIC', cAUIC);
+        //cListItem.set_item('BILL_ASG_DT', cBILL_ASG_DT);
+        try{
+            cListItem.set_item('BILL_ASG_DT', convertDateToSP(cBILL_ASG_DT));
+        }
+        catch(eer) {
+            console.log(cBILL_ASG_DT + " BILL_ASG_DT create error: ");
+            console.log(eer);
+        }
+        cListItem.set_item('BIN', cBIN);
+        cListItem.set_item('BTITLE', cBTITLE);
+        //cListItem.set_item('CAI NOSC', cCAI_NOSC);
+        //cListItem.set_item('CAI Short Title', cCAI_Short_Title);
+        //cListItem.set_item('CAI UMUIC', cCAI_UMUIC);
+        cListItem.set_item('CAI_x0020_NOSC', cCAI_NOSC);
+        cListItem.set_item('CAI_x0020_Short_x0020_Title', cCAI_Short_Title);
+        cListItem.set_item('CAI_x0020_UMUIC', cCAI_UMUIC);
+        cListItem.set_item('CAO_UMUIC', cCAO_UMUIC);
+        cListItem.set_item('CAO_UMUIC_SHORT_TITL', cCAO_UMUIC_SHORT_TITL);
+        cListItem.set_item('CED', convertDateToSP(cCED));
+        cListItem.set_item('CITY', cCITY);
+    
+        cListItem.set_item('CLMNT', cCLMNT);
+        cListItem.set_item('DIEMS', convertDateToSP(cDIEMS));
+        cListItem.set_item('DIERF', convertDateToSP(cDIERF));
+    
+        if(cDOD_ID !== "NONE") {
+            cListItem.set_item('DOD_x0020_Number', cDOD_ID);
+        }
+    
+        //OBSOLETE
+        /*
+        try{
+        cListItem.set_item('DOR', convertDateToSP(cDOR));
+        }
+        catch(eer) {
+        console.log("DOR error: ");
+        console.log(eer);
+        }
+        */
+    
+        cListItem.set_item('DRILLS', cDRILLS);
+        cListItem.set_item('Drills_Tot_Adj', cDrills_Tot_Adj);
+    
+        try{
+            cListItem.set_item('EOS', convertDateToSP(cEOS));
+        }
+        catch(eer) {
+            console.log(cEOS + " EOS create error: ");
+            console.log(eer);
+        }
+    
+        cListItem.set_item('FULL_NAME', cFULL_NAME);
+        //OBSOLETE cListItem.set_item('IAP_Status', cIAP_Status);
+        cListItem.set_item('IAP_DT', convertDateToSP(cIAP_DT));
+        cListItem.set_item('IMS', cIMS);
+        cListItem.set_item('IMS_DT', convertDateToSP(cIMS_DT));
+        cListItem.set_item('MAS', cMAS);
+        cListItem.set_item('MAS_DT', convertDateToSP(cMAS_DT));
+        cListItem.set_item('MED_MAS', cMED_MAS);
+        cListItem.set_item('MED_MAS_DT', convertDateToSP(cMED_MAS_DT));
+        //cListItem.set_item('NAT?', cNAT_);
+        cListItem.set_item('NAT_x003f_', cNAT_);
+        cListItem.set_item('NECNOBC1', cNECNOBC1);
+        cListItem.set_item('NECNOBC2', cNECNOBC2);
+        //OBSOLETE cListItem.set_item('NECNOBC3', cNECNOBC3);
+        //OBSOLETE cListItem.set_item('NECNOBC4', cNECNOBC4);
+        cListItem.set_item('NRA_UIC', cNRA_UIC);
+    
+        try{
+            cListItem.set_item('NRDW_LOAD_DT', convertDateToSP(cNRDW_LOAD_DT));
+        }
+        catch(eer) {
+            console.log(cNRDW_LOAD_DT + " NRDW_LOAD_DT create error: ");
+            console.log(eer);
+        }
+    
+        cListItem.set_item('P_PayGrade', cP_PayGrade);
+        cListItem.set_item('P_Rate_x002f_Rank', cP_Rate_Rank);
+        //OBSOLETE cListItem.set_item('PAQD', cPAQD);
+        cListItem.set_item('Per_O_x002f_E', cPer_O_E);
+        //cListItem.set_item('Per_O-E', cPer_O_E);
+    
+        try{
+            cListItem.set_item('PRD', convertDateToSP(cPRD));
+        }
+        catch(eer) {
+            console.log(cPRD + " PRD create error: ");
+            console.log(eer);
+        }
+    
+        //OBSOLETE cListItem.set_item('PRIMARY_EMAIL', cPRIMARY_EMAIL);
+        cListItem.set_item('PSUBSPEC', cPSUBSPEC);
+        cListItem.set_item('RBSC', cRBSC);
+        cListItem.set_item('REC_TY', cREC_TY);
+        //OBSOLETE cListItem.set_item('REC_TY_B', cREC_TY_B);
+        cListItem.set_item('RQMT_x002f_RD', cRQMT_RD);
+        //cListItem.set_item('Record_Type', cRecord_Type);
+        cListItem.set_item('BT', cRecord_Type);
+        cListItem.set_item('RTNG_x002f_DESG', cRTNG_DESG);
+        //cListItem.set_item('RTNG-DESG', cRTNG_DESG);
+        cListItem.set_item('RUIC_Title', cRUIC_Title);
+        //OBSOLETE cListItem.set_item('SAQD', cSAQD);
+    
+        //OBSOLETE
+        /*
+        try{
+        cListItem.set_item('SCRTY_DT', convertDateToSP(cSCRTY_DT));
+        }
+        catch(eer) {
+        console.log("SCRTY_DT error: ");
+        console.log(eer);
+        }
+        */
+        if(cSCRTY_LVL !== "NONE") {
+            cListItem.set_item('SCRTY_LVL', cSCRTY_LVL);
+            cListItem.set_item('SCRTY_DT', convertDateToSP(cSCRTY_DT));
+        }
+    
+        //OBSOLETE cListItem.set_item('SCRTY_LVL', cSCRTY_LVL);
+        //cListItem.set_item('SELECT', cSELECT);
+        cListItem.set_item('Select1', cSELECT);
+        cListItem.set_item('SEX', cSEX);
+        cListItem.set_item('SSUBSPEC', cSSUBSPEC);
+        cListItem.set_item('STATE', cSTATE);
+        cListItem.set_item('SUPSP1', cSUPSP1);
+        cListItem.set_item('SUPSP2', cSUPSP2);
+        cListItem.set_item('SUPSP3', cSUPSP3);
+        cListItem.set_item('SUPSP4', cSUPSP4);
+        cListItem.set_item('TRA_OTH_MAS', cTRA_OTH_MAS);
+        cListItem.set_item('TRA_OTH_MAS_DT', convertDateToSP(cTRA_OTH_MAS_DT));
+        cListItem.set_item('TRUIC', cTRUIC);
+        //cListItem.set_item('TRUIC SELECT', cTRUIC_SELECT);
+        cListItem.set_item('TRUIC_x0020_SELECT', cTRUIC_SELECT);
+        cListItem.set_item('TRUIC_NOSC', cTRUIC_NOSC);
+        cListItem.set_item('TRUIC_Title', cTRUIC_Title);
+        cListItem.set_item('UA_DRILLS', cUA_DRILLS);
+        cListItem.set_item('UMUIC', cUMUIC);
+        cListItem.set_item('UNIT_ASG_DT', convertDateToSP(cUNIT_ASG_DT));
+        cListItem.set_item('VACATE_DT', convertDateToSP(cVACATE_DT));
+    
+        cListItem.set_item('MOB_STATUS', cMOB_STATUS);
+        cListItem.set_item('TOTAS', cTOTAS);
+        cListItem.set_item('ATTRITION', cATTRITION);
+        cListItem.set_item('AGE_60', cAGE_60);
+    
+        if (cFULL_NAME.length > 0) {
+            var cCurrentTitle = determineTitle(cFULL_NAME);
+            cListItem.set_item('Title', cCurrentTitle);
+            cListItem.set_item('First', firstName);
+            cListItem.set_item('Last', lastName);
+            cListItem.set_item('MI', midInitial);
+            cListItem.set_item('TAIL', tail);
+            cListItem.set_item('Sailor_x0020_Name', setSailorName(cCurrentTitle, cRTNG_DESG, cP_Rate_Rank, cPer_O_E));
+        }
+        cListItem.set_item('SM_U_REGION', cSM_U_REGION);
+        cListItem.set_item('SM_T_REGION', cSM_T_REGION);
+    
+        cListItem.set_item('Update', updateComment);
+        cListItem.set_item('Action', "Created");
+        //cListItem.set_item('Update', updateComment + "_create");
+    
+    
+        try{
+            cListItem.update();
+        }
+        catch(eer) {
+            console.log("update error: ");
+            console.log(eer);
+        }
+    
+        try{
+            context.load(cListItem);
+        }
+        catch(eer) {
+            console.log("load error: ");
+            console.log(eer);
+        }
+    
+    
+        context.executeQueryAsync(Function.createDelegate(this, this.onCreateSucceeded), Function.createDelegate(this, this.onCreateFailed));
+    
+    }
+    
+    function onCreateSucceeded() {
+        //currentCreated++;
+        if (currentCreated % 100 == 0) {
+            console.log(currentCreated + " items created!");
+        }
+    
+    }
+    
+    function onCreateFailed(sender, args) {
+    
+        console.log('Request failed. ' + args.get_message() + '\n' + args.get_stackTrace());
+    }
+    
+    //takes url and returns data
+    function httpGet(theUrl)
+    {
+        var xmlHttp = new XMLHttpRequest();
+        xmlHttp.open( "GET", theUrl, false );
+        xmlHttp.send( null );
+        return xmlHttp.responseText;
+    }
+    
+    //takes url to csv file, converts it to a json object
+    function csv_to_json(fileLocation) {
+        var fileUpload = httpGet(fileLocation);
+    
+        //converts data returned from httpGet() into json format
+        var lines=fileUpload.split('\r');
+        for(var i = 0; i<lines.length-1; i++){
+            lines[i] = lines[i].replace(/\s/,'');
+            lines[i] = lines[i].replace(/\n/,'');
+        }
+    
+        var result = [];
+        var headers=lines[0].split(",");
+    
+        for(var i=1;i<lines.length-1;i++){
+            var obj = {};
+            var currentline=lines[i].split(",");
+            for(var j=0;j<headers.length;j++){
+                obj[headers[j]] = currentline[j];
+            }
+            result.push(obj);
+        }
+        return result;
+    
+        /*
+        Only needed to print output of conversion inside function
+        makes output readable and returns result
+        console.log(JSON.stringify(result));
+        var jsonObj = JSON.parse(result);
+        var jsonString = JSON.stringify(jsonObj);
+        return jsonString;
+        */
+    }
+    
+    function convertDateToSP(jsDate) {
+        var spDate = null;
+        //console.log("JSdate " + spDate);
+        if (jsDate !== "" && jsDate !== 'undefined' && jsDate !== undefined) {
+            var jsDateArray = jsDate.split("/");
+            if (jsDateArray.length > 1) {
+                spDate = new Date(jsDateArray[2], jsDateArray[0] - 1, jsDateArray[1]);
+            } else {
+                jsDateArray = jsDate.split("-");
+                spDate = new Date(jsDateArray[0], jsDateArray[1] - 1, jsDateArray[2]);
+            }
+            //var spDate = jsDateArray[2] + "-" + jsDateArray[0] + "-" + jsDateArray[1] + "T04:00:00Z";
+    
+        }
+        //console.log("SPdate " + spDate.toString());
+        return spDate;
+    }
+    
+    function determineTitle(fullName) {
+        let fullNameArray = fullName.split(" ");
+        // Note: this function uses global vars of firstName, lastName, midInitial, and tail
+        // in order to set those values for the current item
+        lastName = fullNameArray[0];
+        firstName = "";
+    
+        lastName = lastName.toLowerCase();
+        lastName = lastName.replace(lastName.substring(0, 1), lastName.substring(0, 1).toUpperCase());
+    
+        if (fullNameArray.length > 1) {
+            firstName = fullNameArray[1];
+            firstName = firstName.toLowerCase();
+            firstName = firstName.replace(firstName.substring(0, 1), firstName.substring(0, 1).toUpperCase());
+        } else {
+            console.log(fullName + " has no first name");
+        }
+    
+        midInitial = "";
+        tail = "";
+        let thisTitle = "";
+    
+        if (fullNameArray.length > 2) {
+            let midName = fullNameArray[2];
+            let suffix = fullNameArray.slice(-1)[0];
+    
+    // this is where error was
+            if (midName == suffix) {
+                switch(suffix) {
+                    case "I":
+                        tail = suffix;
+                    case "II":
+                        tail = suffix;
+                    case "III":
+                        tail = suffix;
+                    case "IV":
+                        tail = suffix;
+                    case "V":
+                        tail = suffix;
+                    case "VI":
+                        tail = suffix;
+                    case "JR":
+                        tail = suffix;
+                    case "SR":
+                        tail = suffix;
+                    default:
+                        midInitial = midName.substring(0,1);
+                        suffix = midInitial;
+                }
+                thisTitle = lastName.concat(", ", firstName, " ", suffix);
+    
+            } else {
+                midInitial = midName.substring(0,1);
+    
+                switch(suffix) {
+                    case "II":
+                        tail = suffix;
+                        thisTitle = lastName.concat(", ", firstName, " ", midInitial, " ", tail);
+                    case "III":
+                        tail = suffix;
+                        thisTitle = lastName.concat(", ", firstName, " ", midInitial, " ", tail);
+                    case "IV":
+                        tail = suffix;
+                        thisTitle = lastName.concat(", ", firstName, " ", midInitial, " ", tail);
+                    case "V":
+                        tail = suffix;
+                        thisTitle = lastName.concat(", ", firstName, " ", midInitial, " ", tail);
+                    case "VI":
+                        tail = suffix;
+                        thisTitle = lastName.concat(", ", firstName, " ", midInitial, " ", tail);
+                    case "JR":
+                        tail = suffix;
+                        thisTitle = lastName.concat(", ", firstName, " ", midInitial, " ", tail);
+                    case "SR":
+                        tail = suffix;
+                        thisTitle = lastName.concat(", ", firstName, " ", midInitial, " ", tail);
+                    default:
+                        tail = "";
+                        thisTitle = lastName.concat(", ", firstName, " ", midInitial);
+                }
+            }
+        }else {
+            thisTitle = lastName.concat(", ", firstName);
+        }
+        return thisTitle;
+    }
+    
+    
+    function setSailorName(currentTitle, rtng, rank, oe) {
+        var thisSailorName = "";
+        if (oe == "O") {
+            thisSailorName = rank.concat(" ", currentTitle);
+        }else {
+            thisSailorName = rtng.concat(" ", currentTitle)
+        }
+        return thisSailorName;
+    }
+    
+    
+    function determineRegion(uic) {
+        var thisRegion = "";
+        switch(uic) {
+            case "82800":
+                thisRegion = "CENTRAL NORTH"
+                break;
+            case "85832":
+                thisRegion = "CENTRAL NORTH"
+                break;
+            case "85895":
+                thisRegion = "CENTRAL NORTH"
+                break;
+            case "86715":
+                thisRegion = "CENTRAL NORTH"
+                break;
+            case "87213":
+                thisRegion = "CENTRAL NORTH"
+                break;
+            case "87246":
+                thisRegion = "CENTRAL NORTH"
+                break;
+            case "87392":
+                thisRegion = "CENTRAL NORTH"
+                break;
+            case "87720":
+                thisRegion = "CENTRAL NORTH"
+                break;
+            case "88566":
+                thisRegion = "CENTRAL NORTH"
+                break;
+            case "82796":
+                thisRegion = "CENTRAL NORTHEAST"
+                break;
+            case "82834":
+                thisRegion = "CENTRAL NORTHEAST"
+                break;
+            case "82852":
+                thisRegion = "CENTRAL NORTHEAST"
+                break;
+            case "83532":
+                thisRegion = "CENTRAL NORTHEAST"
+                break;
+            case "84359":
+                thisRegion = "CENTRAL NORTHEAST"
+                break;
+            case "87199":
+                thisRegion = "CENTRAL NORTHEAST"
+                break;
+            case "87365":
+                thisRegion = "CENTRAL NORTHEAST"
+                break;
+            case "87971":
+                thisRegion = "CENTRAL NORTHEAST"
+                break;
+            case "89127":
+                thisRegion = "CENTRAL NORTHEAST"
+                break;
+            case "89666":
+                thisRegion = "CENTRAL NORTHEAST"
+                break;
+            case "55859":
+                thisRegion = "CENTRAL SOUTH"
+                break;
+            case "82805":
+                thisRegion = "CENTRAL SOUTH"
+                break;
+            case "83237":
+                thisRegion = "CENTRAL SOUTH"
+                break;
+            case "83375":
+                thisRegion = "CENTRAL SOUTH"
+                break;
+            case "83534":
+                thisRegion = "CENTRAL SOUTH"
+                break;
+            case "84063":
+                thisRegion = "CENTRAL SOUTH"
+                break;
+            case "84077":
+                thisRegion = "CENTRAL SOUTH"
+                break;
+            case "85829":
+                thisRegion = "CENTRAL SOUTH"
+                break;
+            case "87642":
+                thisRegion = "CENTRAL SOUTH"
+                break;
+            case "89916":
+                thisRegion = "CENTRAL SOUTH"
+                break;
+            case "81123":
+                thisRegion = "EAST"
+                break;
+            case "83846":
+                thisRegion = "EAST"
+                break;
+            case "85364":
+                thisRegion = "EAST"
+                break;
+            case "87646":
+                thisRegion = "EAST"
+                break;
+            case "88149":
+                thisRegion = "EAST"
+                break;
+            case "88152":
+                thisRegion = "EAST"
+                break;
+            case "89123":
+                thisRegion = "EAST"
+                break;
+            case "89649":
+                thisRegion = "EAST"
+                break;
+            case "83016":
+                thisRegion = "GULF"
+                break;
+            case "83281":
+                thisRegion = "GULF"
+                break;
+            case "83565":
+                thisRegion = "GULF"
+                break;
+            case "83566":
+                thisRegion = "GULF"
+                break;
+            case "84157":
+                thisRegion = "GULF"
+                break;
+            case "84365":
+                thisRegion = "GULF"
+                break;
+            case "87648":
+                thisRegion = "GULF"
+                break;
+            case "87807":
+                thisRegion = "GULF"
+                break;
+            case "89092":
+                thisRegion = "GULF"
+                break;
+            case "86709":
+                thisRegion = "NATIONAL"
+                break;
+            case "83747":
+                thisRegion = "NORTHEAST"
+                break;
+            case "84176":
+                thisRegion = "NORTHEAST"
+                break;
+            case "84255":
+                thisRegion = "NORTHEAST"
+                break;
+            case "86707":
+                thisRegion = "NORTHEAST"
+                break;
+            case "86708":
+                thisRegion = "NORTHEAST"
+                break;
+            case "86711":
+                thisRegion = "NORTHEAST"
+                break;
+            case "87647":
+                thisRegion = "NORTHEAST"
+                break;
+            case "88238":
+                thisRegion = "NORTHEAST"
+                break;
+            case "89917":
+                thisRegion = "NORTHEAST"
+                break;
+            case "80011":
+                thisRegion = "PACIFIC"
+                break;
+            case "82676":
+                thisRegion = "PACIFIC"
+                break;
+            case "82702":
+                thisRegion = "PACIFIC"
+                break;
+            case "82804":
+                thisRegion = "PACIFIC"
+                break;
+            case "83711":
+                thisRegion = "PACIFIC"
+                break;
+            case "83726":
+                thisRegion = "PACIFIC"
+                break;
+            case "84208":
+                thisRegion = "PACIFIC"
+                break;
+            case "87211":
+                thisRegion = "PACIFIC"
+                break;
+            case "87649":
+                thisRegion = "PACIFIC"
+                break;
+            case "89131":
+                thisRegion = "PACIFIC"
+                break;
+            case "82922":
+                thisRegion = "WEST"
+                break;
+            case "83610":
+                thisRegion = "WEST"
+                break;
+            case "83749":
+                thisRegion = "WEST"
+                break;
+            case "84338":
+                thisRegion = "WEST"
+                break;
+            case "84360":
+                thisRegion = "WEST"
+                break;
+            case "85830":
+                thisRegion = "WEST"
+                break;
+            case "86712":
+                thisRegion = "WEST"
+                break;
+            case "86821":
+                thisRegion = "WEST"
+                break;
+            case "89132":
+                thisRegion = "WEST"
+                break;
+            default:
+                thisRegion = "NON-SURGEMAIN"
+        }
+    
+        return thisRegion;
+    
+    }
+    
+    
+    </script>
+    <div><label>Current Update Comment (will be put in Update field of all items): </label><input type="text" id="process-comment"></div>
+    <div onkeydown="javascript:if (event.keyCode == 13) getTRAQSList()"><input type="button" value="Process" onclick="getTRAQSList()"/></div>
+
+    <body onload="doChecks()">
+        <script>
+        //document.getElementsByTagName("body")[0].onload=function(){doChecks()};
+        function doChecks() {
+        //var checks = document.getElementById("onetidDoclibViewTb10");
+        //var checks = document.getElementsByTagName("tbody")[1];
+        var listTable = document.getElementsByClassName("ms-listviewtable")[0];
+        var listBody = listTable.getElementsByTagName("tbody")[0];
+        var listRows = listBody.getElementsByTagName("tr");
+        
+        for (var i = 0; i < listRows.length; i++) {
+          var listRow = listRows[i];
+          var listLastCell = listRow.getElementsByTagName("td")[7];
+          if (listLastCell.innerText !== "") {
+            alert(listLastCell.innerText);
+            }
+        }
+        
+        
+        
+        //alert(checks.innerHTML);
+        //alert(checks.length);
+        //alert("You must mark the waiver as Vol or NonVol and Check-In the document")
+        }
+        </script>

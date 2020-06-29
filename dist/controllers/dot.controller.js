@@ -9,8 +9,8 @@ let DotController = class DotController {
     constructor(dotRepository) {
         this.dotRepository = dotRepository;
     }
-    async create(dot) {
-        return this.dotRepository.create(dot);
+    async create(dots) {
+        return this.dotRepository.createAll(dots);
     }
     async count(where) {
         return this.dotRepository.count(where);
@@ -33,28 +33,38 @@ let DotController = class DotController {
     async deleteById(id) {
         await this.dotRepository.deleteById(id);
     }
+    async findByCategory(category, filter) {
+        return this.dotRepository.find({ where: { category: category } });
+    }
 };
 tslib_1.__decorate([
     rest_1.post('/dots', {
         responses: {
             '200': {
                 description: 'Dot model instance',
-                content: { 'application/json': { schema: rest_1.getModelSchemaRef(models_1.Dot) } },
+                content: {
+                    'application/json': {
+                        schema: {
+                            type: 'array',
+                            items: rest_1.getModelSchemaRef(models_1.Dot, { includeRelations: true }),
+                        },
+                    },
+                },
             },
         },
     }),
     tslib_1.__param(0, rest_1.requestBody({
         content: {
             'application/json': {
-                schema: rest_1.getModelSchemaRef(models_1.Dot, {
-                    title: 'NewDot',
-                    exclude: ['id'],
-                }),
+                schema: {
+                    type: 'array',
+                    items: rest_1.getModelSchemaRef(models_1.Dot, { includeRelations: true }),
+                },
             },
-        },
+        }
     })),
     tslib_1.__metadata("design:type", Function),
-    tslib_1.__metadata("design:paramtypes", [Object]),
+    tslib_1.__metadata("design:paramtypes", [Array]),
     tslib_1.__metadata("design:returntype", Promise)
 ], DotController.prototype, "create", null);
 tslib_1.__decorate([
@@ -179,6 +189,28 @@ tslib_1.__decorate([
     tslib_1.__metadata("design:paramtypes", [Number]),
     tslib_1.__metadata("design:returntype", Promise)
 ], DotController.prototype, "deleteById", null);
+tslib_1.__decorate([
+    rest_1.get('/dots/category/{category}', {
+        responses: {
+            '200': {
+                description: 'Array of Dot model instances',
+                content: {
+                    'application/json': {
+                        schema: {
+                            type: 'array',
+                            items: rest_1.getModelSchemaRef(models_1.Dot, { includeRelations: true }),
+                        },
+                    },
+                },
+            },
+        },
+    }),
+    tslib_1.__param(0, rest_1.param.path.string('category')),
+    tslib_1.__param(1, rest_1.param.filter(models_1.Dot)),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [String, Object]),
+    tslib_1.__metadata("design:returntype", Promise)
+], DotController.prototype, "findByCategory", null);
 DotController = tslib_1.__decorate([
     tslib_1.__param(0, repository_1.repository(repositories_1.DotRepository)),
     tslib_1.__metadata("design:paramtypes", [repositories_1.DotRepository])
