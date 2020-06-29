@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.Dot = void 0;
 const tslib_1 = require("tslib");
 const repository_1 = require("@loopback/repository");
 let Dot = class Dot extends repository_1.Entity {

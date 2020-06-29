@@ -1,10 +1,17 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.DotController = void 0;
 const tslib_1 = require("tslib");
 const repository_1 = require("@loopback/repository");
 const rest_1 = require("@loopback/rest");
 const models_1 = require("../models");
 const repositories_1 = require("../repositories");
+const authentication_1 = require("@loopback/authentication");
+/*
+If there are particular API that you want to make it available to everyone without authentication,
+you can add @authenticate.skip() before that function.
+See https://loopback.io/doc/en/lb4/Decorators_authenticate.html for more details.
+*/
 let DotController = class DotController {
     constructor(dotRepository) {
         this.dotRepository = dotRepository;
@@ -212,6 +219,7 @@ tslib_1.__decorate([
     tslib_1.__metadata("design:returntype", Promise)
 ], DotController.prototype, "findByCategory", null);
 DotController = tslib_1.__decorate([
+    authentication_1.authenticate('jwt'),
     tslib_1.__param(0, repository_1.repository(repositories_1.DotRepository)),
     tslib_1.__metadata("design:paramtypes", [repositories_1.DotRepository])
 ], DotController);

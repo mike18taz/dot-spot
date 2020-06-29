@@ -10,6 +10,14 @@ import {ServiceMixin} from '@loopback/service-proxy';
 import path from 'path';
 import {MySequence} from './sequence';
 
+import {AuthenticationComponent} from '@loopback/authentication';
+import {
+  JWTAuthenticationComponent,
+  SECURITY_SCHEME_SPEC,
+  UserServiceBindings,
+} from '@loopback/authentication-jwt';
+import {MdbDataSource} from './datasources';
+
 export class ConnectingDotsApp extends BootMixin(
   ServiceMixin(RepositoryMixin(RestApplication)),
 ) {
@@ -38,5 +46,12 @@ export class ConnectingDotsApp extends BootMixin(
         nested: true,
       },
     };
+
+    // Mount authentication system
+    this.component(AuthenticationComponent);
+    // Mount jwt component
+    this.component(JWTAuthenticationComponent);
+    // Bind datasource
+    this.dataSource(MdbDataSource, UserServiceBindings.DATASOURCE_NAME);
   }
 }

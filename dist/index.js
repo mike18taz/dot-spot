@@ -1,7 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.main = exports.ConnectingDotsApp = void 0;
 const application_1 = require("./application");
-exports.ConnectingDotsApp = application_1.ConnectingDotsApp;
+Object.defineProperty(exports, "ConnectingDotsApp", { enumerable: true, get: function () { return application_1.ConnectingDotsApp; } });
 async function main(options = {}) {
     const app = new application_1.ConnectingDotsApp(options);
     await app.boot();

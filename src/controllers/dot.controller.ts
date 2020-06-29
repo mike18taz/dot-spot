@@ -15,7 +15,7 @@ import {
 
 
 
-  
+
   put,
 
   requestBody
@@ -23,6 +23,15 @@ import {
 import {Dot} from '../models';
 import {DotRepository} from '../repositories';
 
+import {authenticate} from '@loopback/authentication';
+
+/*
+If there are particular API that you want to make it available to everyone without authentication, 
+you can add @authenticate.skip() before that function. 
+See https://loopback.io/doc/en/lb4/Decorators_authenticate.html for more details.
+*/
+
+@authenticate('jwt')
 export class DotController {
   constructor(
     @repository(DotRepository)
