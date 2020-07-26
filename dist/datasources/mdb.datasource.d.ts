@@ -4,14 +4,12 @@ export declare class MdbDataSource extends juggler.DataSource implements LifeCyc
     static dataSourceName: string;
     static readonly defaultConfig: {
         name: string;
-        connector: string;
         url: string;
-        host: string;
-        port: number;
         user: string;
         password: string;
         database: string;
         useNewUrlParser: boolean;
+        useUnifiedTopology: boolean;
     };
     constructor(dsConfig?: object);
 }

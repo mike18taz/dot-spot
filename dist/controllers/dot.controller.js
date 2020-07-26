@@ -89,6 +89,7 @@ tslib_1.__decorate([
     tslib_1.__metadata("design:returntype", Promise)
 ], DotController.prototype, "count", null);
 tslib_1.__decorate([
+    authentication_1.authenticate.skip(),
     rest_1.get('/dots', {
         responses: {
             '200': {
@@ -197,6 +198,7 @@ tslib_1.__decorate([
     tslib_1.__metadata("design:returntype", Promise)
 ], DotController.prototype, "deleteById", null);
 tslib_1.__decorate([
+    authentication_1.authenticate.skip(),
     rest_1.get('/dots/category/{category}', {
         responses: {
             '200': {

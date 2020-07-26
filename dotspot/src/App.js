@@ -47,7 +47,7 @@ class App extends Component {
     } else {
       */
     
-
+alert(url)
     fetch(url)
       .then(result => result.json())
       .then(result => {
@@ -58,7 +58,9 @@ class App extends Component {
         })
       })
     //}
+    
   }
+  
   
   handleSave = dot => {
     const { dots } = this.state

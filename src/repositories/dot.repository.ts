@@ -1,6 +1,6 @@
 import {inject} from '@loopback/core';
 import {DefaultCrudRepository} from '@loopback/repository';
-import {DbDataSource} from '../datasources';
+import {MdbDataSource} from '../datasources';
 import {Dot, DotRelations} from '../models';
 
 export class DotRepository extends DefaultCrudRepository<
@@ -9,7 +9,7 @@ export class DotRepository extends DefaultCrudRepository<
   DotRelations
   > {
   constructor(
-    @inject('datasources.mdb') dataSource: DbDataSource,
+    @inject('datasources.mdb') dataSource: MdbDataSource,
   ) {
     super(Dot, dataSource);
   }

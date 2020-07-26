@@ -83,6 +83,7 @@ export class DotController {
     return this.dotRepository.count(where);
   }
 
+  @authenticate.skip()
   @get('/dots', {
     responses: {
       '200': {
@@ -191,6 +192,7 @@ export class DotController {
     await this.dotRepository.deleteById(id);
   }
 
+  @authenticate.skip()
   @get('/dots/category/{category}', {
     responses: {
       '200': {

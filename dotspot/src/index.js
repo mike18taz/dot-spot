@@ -7,7 +7,7 @@ import * as serviceWorker from './serviceWorker';
 
 var url = window.location.pathname
 
-if(url == "/login") {
+if(url === "/login") {
   ReactDOM.render(
     <React.StrictMode>
     <div className="container">
@@ -19,7 +19,21 @@ if(url == "/login") {
     </React.StrictMode>,
   document.getElementById('root')
 );
-} else if(url == "/register") {
+
+fetch('/users/login', {
+  method: 'POST',
+  headers: {
+    'Accept': 'application/json',
+    'Content-Type': 'application/json',
+  },
+  body: {
+  "email": "mdowns@regis.edu",
+  "password": "Shal33c3D"
+}
+})
+
+
+} else if(url === "/register") {
   ReactDOM.render(
     <React.StrictMode>
     <div className="container">

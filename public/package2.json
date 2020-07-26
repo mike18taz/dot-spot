@@ -25,9 +25,8 @@
     "posttest": "npm run lint",
     "test:dev": "lb-mocha --allow-console-logs dist/__tests__/**/*.js && npm run posttest",
     "migrate": "node ./dist/migrate",
-    "prepare": "npm run gcp-build",
+    "prestart": "npm run gcp-build",
     "gcp-build": "lb-tsc",
-    "gcp-build:watch": "lb-tsc --watch",
     "start": "node -r source-map-support/register .",
     "clean": "lb-clean dist *.tsbuildinfo .eslintcache"
   },
@@ -55,21 +54,20 @@
     "@loopback/rest": "^5.1.2",
     "@loopback/rest-explorer": "^2.2.5",
     "@loopback/service-proxy": "^2.3.3",
-    "loopback-connector-mongodb": "^4.2.0",
-    "source-map-support": "^0.5.19"
+    "loopback-connector-mongodb": "^4.2.0"
   },
   "devDependencies": {
     "@loopback/build": "^6.0.0",
-    "@loopback/eslint-config": "^8.0.2",
+    "source-map-support": "^0.5.19",
     "@loopback/testlab": "^3.1.8",
     "@types/node": "^10.17.26",
-    "@typescript-eslint/eslint-plugin": "^2.31.0",
     "@typescript-eslint/parser": "^2.31.0",
+    "@typescript-eslint/eslint-plugin": "^2.31.0",
+    "@loopback/eslint-config": "^8.0.2",
     "eslint": "6.8.0",
     "eslint-config-prettier": "^6.11.0",
     "eslint-plugin-eslint-plugin": "^2.2.1",
     "eslint-plugin-mocha": "^7.0.0",
-    "source-map-support": "^0.5.19",
     "typescript": "~3.9.5"
   }
 }
