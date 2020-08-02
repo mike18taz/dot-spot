@@ -219,5 +219,31 @@ export class DotController {
     return this.dotRepository.find({where: {category: category}});
   }
 
+
+
+  @authenticate.skip()
+  @get('/app', {
+    responses: {
+      '200': {
+        description: 'Open WebApp',
+        content: {
+          'text/html': {
+            schema: {
+              type: 'html',
+            },
+          },
+        },
+      },
+    },
+  })
+  
+  async findj(
+    @param.filter(Dot) filter?: Filter<Dot>,
+  ): Promise<Dot[]> {
+    return this.dotRepository.find(filter);
+  }
+  
+
+
 }
 
