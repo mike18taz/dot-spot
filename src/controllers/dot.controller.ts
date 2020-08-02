@@ -29,6 +29,9 @@ import {authenticate} from '@loopback/authentication';
 If there are particular API that you want to make it available to everyone without authentication, 
 you can add @authenticate.skip() before that function. 
 See https://loopback.io/doc/en/lb4/Decorators_authenticate.html for more details.
+
+When in Explorer, login with credentials and then copy the token value and clcik on Authorize
+at the top of Explorer and paste in value. This allows all parts of Explorer to work.
 */
 
 @authenticate('jwt')
