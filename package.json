@@ -17,7 +17,7 @@
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
-  "proxy": "https://regis-practicum.herokuapp.com/:3001",
+  "proxy": "https://regis-practicum.herokuapp.com:14450",
   "eslintConfig": {
     "extends": "react-app"
   },
