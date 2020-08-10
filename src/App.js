@@ -10,7 +10,7 @@ import './App.css';
 
 
 class App extends Component {
-  var proxyURL = "https://regis-practicum.herokuapp.com"
+  const proxyURL = "https://regis-practicum.herokuapp.com"
 
   state = {
       dots:
