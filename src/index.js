@@ -28,7 +28,7 @@ fetch('/users/login', {
   },
   body: {
   "email": "mdowns@regis.edu",
-  "password": "Shal33c3D"
+  "password": "regis123"
 }
 })
 
