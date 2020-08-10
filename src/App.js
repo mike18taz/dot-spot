@@ -7,8 +7,11 @@ import './App.css';
 
 //var currentUrl = ""
 
+
+
 class App extends Component {
-  
+  var proxyURL = "https://regis-practicum.herokuapp.com"
+
   state = {
       dots:
         {aDots: [{"name":"place2","category":"place"},
@@ -27,7 +30,7 @@ class App extends Component {
     
 
   componentDidMount() {
-    var url = window.location.pathname
+    var url = proxyURL + window.location.pathname
     console.log(url)
     //currentUrl = url
 
@@ -93,7 +96,7 @@ alert(url)
     console.log(newData2)
  
 
-    fetch('https://regis-practicum.herokuapp.com/dots', {
+    fetch(proxyURL +'/dots', {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
