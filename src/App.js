@@ -93,7 +93,7 @@ alert(url)
     console.log(newData2)
  
 
-    fetch('https://regis-practicum.wm.r.appspot.com/dots', {
+    fetch('/dots', {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
