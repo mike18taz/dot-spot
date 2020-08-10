@@ -28,7 +28,7 @@ fetch(proxyURL + '/users/login', {
     'Content-Type': 'application/json',
   },
   body: {
-  "email": "mdowns@regis.edu",
+  "email": "chiefdowns@gmail.com",
   "password": "regis123"
 }
 })
