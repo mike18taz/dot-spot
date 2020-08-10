@@ -93,7 +93,7 @@ alert(url)
     console.log(newData2)
  
 
-    fetch('/dots', {
+    fetch('https://regis-practicum.herokuapp.com/dots', {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
