@@ -5,6 +5,7 @@ import App from './App';
 //import Selected from './Selected';
 import * as serviceWorker from './serviceWorker';
 
+var proxyURL = "https://regis-practicum.herokuapp.com"
 var url = window.location.pathname
 
 if(url === "/login") {
@@ -20,7 +21,7 @@ if(url === "/login") {
   document.getElementById('root')
 );
 
-fetch('/users/login', {
+fetch(proxyURL + '/users/login', {
   method: 'POST',
   headers: {
     'Accept': 'application/json',
