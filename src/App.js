@@ -97,7 +97,7 @@ class App extends Component {
  
 
     fetch('/connections/6e272fc5-b4af-4546-9cc4-7d4e0182f218', {
-      method: 'POST',
+      method: 'PUT',
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
