@@ -171,7 +171,7 @@ class App extends Component {
         account: app.account
       }
     })
-    console.log(dots)
+    console.log(app.dots)
 
   }
 
