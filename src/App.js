@@ -96,7 +96,7 @@ class App extends Component {
     console.log(newData)
  
 
-    fetch('/connections/{6e272fc5-b4af-4546-9cc4-7d4e0182f218}', {
+    fetch(proxyURL + '/connections/{6e272fc5-b4af-4546-9cc4-7d4e0182f218}', {
       method: 'PUT',
       headers: {
         'Accept': 'application/json',
