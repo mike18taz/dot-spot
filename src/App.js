@@ -13,7 +13,8 @@ class App extends Component {
   
 
   state = {
-      dots:
+      app:{
+        dots:
         {aDots: [{"name":"place2","category":"place"},
               {"name":"thing2","category":"thing"},
               {"name":"idea2","category":"idea"}],
@@ -27,6 +28,7 @@ class App extends Component {
           lines: [],
           },
         },
+      }
   }
     //} [{"name":"idea1","category":"idea"},
     //{"name":"place1","category":"place"},
@@ -69,11 +71,14 @@ class App extends Component {
     fetch(url)
       .then(result => result.json())
       .then(result => {
-        this.setState({dots:
+        this.setState({app:
           {
-          aDots: result, sDots: []
-          },
-          connections: connections
+            dots:
+              {
+                aDots: result, sDots: []
+              },
+            account:{connections: connections}
+          }
         })
       })
     //}
@@ -82,12 +87,12 @@ class App extends Component {
   
   
   handleSave = dot => {
-    const { dots } = this.state.dots
+    const { app } = this.state
     var connectionID = ""
 
     //var data = new FormData();
     //data = dots.sDots
-    var newData = JSON.stringify(dots.sDots)
+    var newData = JSON.stringify(app.dots.sDots)
     console.log(newData)
  
 
@@ -104,12 +109,12 @@ class App extends Component {
   }
 
   handleAdd = dot => {
-    const { dots } = this.state
+    const { app } = this.state
 
     //var data = new FormData();
     //data = dots.sDots
-    var newData = JSON.stringify(dots.aDots.concat(dots.sDots))
-    var newData2 = JSON.stringify(dots.sDots)
+    var newData = JSON.stringify(app.dots.aDots.concat(app.dots.sDots))
+    var newData2 = JSON.stringify(app.dots.sDots)
     console.log(newData2)
  
 
@@ -132,30 +137,38 @@ class App extends Component {
   }
   
   handleSubmit = dot => {
-    const { dots } = this.state
+    const { app } = this.state
     var newSdot = dot
-    this.setState({dots: 
-      { 
-        aDots: dots.aDots, 
-        sDots: [...dots.sDots, dot], 
+    this.setState({app:
+      {
+        dots: 
+        { 
+          aDots: app.dots.aDots, 
+          sDots: [...app.dots.sDots, dot], 
+        },
+        account: app.account
       }
     })
   }
 
   selectDot = index => {
-    const { dots } = this.state
+    const { app } = this.state
   
-    var newSdot = dots.aDots.filter((dot, i) => {
+    var newSdot = app.dots.aDots.filter((dot, i) => {
       return i === index
     })
 
 
-    this.setState({dots:
+    this.setState({app:
       {
-        aDots: dots.aDots.filter((dot, i) => {
-          return i !== index
-        }),
-        sDots: dots.sDots.concat(newSdot),
+        dots:
+        {
+          aDots: app.dots.aDots.filter((dot, i) => {
+            return i !== index
+          }),
+          sDots: app.dots.sDots.concat(newSdot),
+        },
+        account: app.account
       }
     })
     console.log(dots)
@@ -163,24 +176,28 @@ class App extends Component {
   }
 
   removeDot = index => {
-    const { dots } = this.state
-    console.log(dots)
-    var removeSdot = dots.sDots.filter((dot, i) => {
+    const { app } = this.state
+    console.log(app)
+    var removeSdot = app.dots.sDots.filter((dot, i) => {
       return i === index
     })
 
-    this.setState({dots:
+    this.setState({app:
       {
-        aDots: dots.aDots.concat(removeSdot).sort(),
-        sDots: dots.sDots.filter((dot, i) => {
-          return i !== index
-        }),
+        dots:
+        {
+          aDots: app.dots.aDots.concat(removeSdot).sort(),
+          sDots: app.dots.sDots.filter((dot, i) => {
+            return i !== index
+          }),
+        },
+        account: app.account
       }
-    })
+  })
   }
 
   render() {
-    const { dots } = this.state
+    const { app } = this.state
     //console.log(dots)
     //const { aDots } = dots
     //console.log(aDots)
@@ -201,9 +218,9 @@ class App extends Component {
     return (
         <div className="container">
             <h2>Available Dots</h2>
-            <Table dotData={dots.aDots.sort()} selectDot={this.selectDot} />
+            <Table dotData={app.dots.aDots.sort()} selectDot={this.selectDot} />
             <h2>Selected Dots</h2>
-            <TableSelected dotData={dots.sDots.sort()} removeDot={this.removeDot} />
+            <TableSelected dotData={app.dots.sDots.sort()} removeDot={this.removeDot} />
             <button onClick={this.handleSave}>Save Dots to MyNotebook</button>
             <h2>Add a Dot</h2>
             <Form handleSubmit={this.handleSubmit} />
