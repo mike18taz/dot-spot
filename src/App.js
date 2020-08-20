@@ -17,10 +17,16 @@ class App extends Component {
         {aDots: [{"name":"place2","category":"place"},
               {"name":"thing2","category":"thing"},
               {"name":"idea2","category":"idea"}],
-        
-        sDots: [
-              ],
-        }
+        sDots: [],
+        },
+      account:
+        {connections:
+          {dots: [{"name":"place2","category":"place"},
+                {"name":"thing2","category":"thing"},
+                {"name":"idea2","category":"idea"}],
+          lines: [],
+          },
+        },
   }
     //} [{"name":"idea1","category":"idea"},
     //{"name":"place1","category":"place"},
@@ -30,6 +36,15 @@ class App extends Component {
     
 
   componentDidMount() {
+    var connectionsURL = "https://regis-practicum.herokuapp.com/connections"
+    var connections = []
+    fetch(connectionsURL)
+      .then(result => result.json())
+      .then(result => {
+        this.connections = result
+      })
+
+
     var url = proxyURL + window.location.pathname
     console.log(url)
     //currentUrl = url
@@ -50,14 +65,15 @@ class App extends Component {
     } else {
       */
     
-alert(url)
+//alert(url)
     fetch(url)
       .then(result => result.json())
       .then(result => {
         this.setState({dots:
           {
           aDots: result, sDots: []
-          }
+          },
+          connections: connections
         })
       })
     //}
@@ -66,8 +82,8 @@ alert(url)
   
   
   handleSave = dot => {
-    const { dots } = this.state
-/*
+    const { sDots } = this.state.dots.sDots
+
     //var data = new FormData();
     //data = dots.sDots
     var newData = JSON.stringify(dots.aDots.concat(dots.sDots))
@@ -82,7 +98,7 @@ alert(url)
       },
       body: newData
     })
-    */
+    
     alert("Feature coming soon!")
   }
 
