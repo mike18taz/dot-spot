@@ -82,15 +82,16 @@ class App extends Component {
   
   
   handleSave = dot => {
-    const { sDots } = this.state.dots.sDots
+    const { dots } = this.state.dots
+    var connectionID = ""
 
     //var data = new FormData();
     //data = dots.sDots
-    var newData = JSON.stringify(dots.aDots.concat(dots.sDots))
+    var newData = JSON.stringify(dots.sDots)
     console.log(newData)
  
 
-    fetch('/dots', {
+    fetch('/connections/6e272fc5-b4af-4546-9cc4-7d4e0182f218', {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
@@ -99,7 +100,7 @@ class App extends Component {
       body: newData
     })
     
-    alert("Feature coming soon!")
+    alert("Dots added to default Connection!")
   }
 
   handleAdd = dot => {
